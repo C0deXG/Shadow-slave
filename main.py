@@ -89,4 +89,4 @@ def index():
     return render_template_string(HTML_TEMPLATE, chapters=chapters, content=content, start=start, end=end)
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=8080, debug=True)
