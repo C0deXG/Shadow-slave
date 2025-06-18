@@ -1,86 +1,67 @@
 from flask import Flask, render_template_string, request, make_response
+from markupsafe import escape
 import os
 from docx import Document
 
 app = Flask(__name__)
 
-# Folder containing .docx chapters
+# Directory containing your .docx chapter files
 STORY_FOLDER = "downloaded_docs"
 
-# Get all chapter filenames
+# List all .docx files in ascending order
 chapters = sorted(f for f in os.listdir(STORY_FOLDER) if f.endswith(".docx"))
 
+# The HTML template: semantic <article>, <h2> and <p>
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Shadow Slave Reader</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <style>
-        body {
-            font-family: sans-serif;
-            padding: 1rem;
-            max-width: 900px;
-            margin: auto;
-        }
-        select, button {
-            margin-bottom: 1rem;
-        }
-        #reader {
-            white-space: pre-wrap;
-            margin-top: 2rem;
-        }
-    </style>
+  <meta charset="utf-8">
+  <title>Shadow Slave Reader</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: sans-serif; padding: 1rem; max-width: 800px; margin: auto; }
+    select, button { margin: .5rem 0; }
+    article { margin-top: 2rem; }
+    h2      { margin: 1.5rem 0 .5rem; font-size: 1.25rem; }
+    p       { margin: .5rem 0; line-height: 1.4; }
+  </style>
 </head>
 <body>
-    <h2>Shadow Slave Chapter Reader</h2>
-    <form method="get">
-        <label for="start">From:</label>
-        <select name="start" id="start">
-            {% for file in chapters %}
-                <option value="{{ file }}" {% if file == start %}selected{% endif %}>{{ file.replace('.docx', '') }}</option>
-            {% endfor %}
-        </select>
+  <h1>Shadow Slave Reader</h1>
+  <form method="get">
+    <label for="start">From:</label>
+    <select name="start" id="start">
+      {% for file in chapters %}
+        <option value="{{ file }}" {% if file==start %}selected{% endif %}>
+          {{ file.replace('.docx','') }}
+        </option>
+      {% endfor %}
+    </select>
 
-        <label for="end">To:</label>
-        <select name="end" id="end">
-            {% for file in chapters %}
-                <option value="{{ file }}" {% if file == end %}selected{% endif %}>{{ file.replace('.docx', '') }}</option>
-            {% endfor %}
-        </select>
+    <label for="end">To:</label>
+    <select name="end" id="end">
+      {% for file in chapters %}
+        <option value="{{ file }}" {% if file==end %}selected{% endif %}>
+          {{ file.replace('.docx','') }}
+        </option>
+      {% endfor %}
+    </select>
 
-        <button type="submit">Read</button>
-    </form>
+    <button type="submit">Read</button>
+  </form>
 
-    {% if content %}
-        <div id="reader">{{ content }}</div>
-        <button onclick="speakText()">🔊 Read Aloud</button>
-        <button onclick="stopSpeaking()">🛑 Stop</button>
-    {% endif %}
-
-    <script>
-        function speakText() {
-            try {
-                const text = document.getElementById('reader').innerText;
-                if (!text) throw new Error("No text to read");
-                const utterance = new SpeechSynthesisUtterance(text);
-                utterance.onerror = (e) => {
-                    alert("Speech failed: " + e.error);
-                };
-                window.speechSynthesis.speak(utterance);
-            } catch (err) {
-                alert("Text-to-speech not supported or failed.");
-            }
-        }
-
-        function stopSpeaking() {
-            try {
-                window.speechSynthesis.cancel();
-            } catch (err) {
-                console.error("Stop speaking failed:", err);
-            }
-        }
-    </script>
+  {% if content %}
+    <article id="chapter-content">
+      {{ content|safe }}
+    </article>
+    <button onclick="window.speechSynthesis.speak(new SpeechSynthesisUtterance(document.getElementById('chapter-content').innerText));">
+      🔊 Read Aloud
+    </button>
+    <button onclick="window.speechSynthesis.cancel();">
+      🛑 Stop
+    </button>
+  {% endif %}
 </body>
 </html>
 """
@@ -88,21 +69,23 @@ HTML_TEMPLATE = """
 @app.route("/")
 def index():
     start = request.args.get("start")
-    end = request.args.get("end")
+    end   = request.args.get("end")
     content = ""
 
-    if start and end and start in chapters and end in chapters:
-        start_index = chapters.index(start)
-        end_index = chapters.index(end)
-
-        if start_index <= end_index:
-            selected = chapters[start_index:end_index + 1]
-            for chapter in selected:
-                doc = Document(os.path.join(STORY_FOLDER, chapter))
-                content += f"\n\n\n----- {chapter.replace('.docx', '')} -----\n\n"
-                content += "\n".join(p.text for p in doc.paragraphs)
+    if start in chapters and end in chapters:
+        si, ei = chapters.index(start), chapters.index(end)
+        if si <= ei:
+            for fname in chapters[si:ei+1]:
+                # Use filename without .docx as the heading text
+                title = os.path.splitext(fname)[0]
+                content += f"<h2>{escape(title)}</h2>\n"
+                doc = Document(os.path.join(STORY_FOLDER, fname))
+                for p in doc.paragraphs:
+                    txt = p.text.strip()
+                    if txt:
+                        content += f"<p>{escape(txt)}</p>\n"
         else:
-            content = "⚠️ Invalid range: 'From' must come before 'To'."
+            content = "<p>⚠️ Invalid range: 'From' must come before 'To'.</p>"
 
     rendered = render_template_string(
         HTML_TEMPLATE,
@@ -112,12 +95,12 @@ def index():
         end=end
     )
 
-    # Prevent caching issues in Edge
-    response = make_response(rendered)
-    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
-    response.headers["Pragma"] = "no-cache"
-    response.headers["Expires"] = "0"
-    return response
+    # Prevent caching so Edge always loads the newest content
+    resp = make_response(rendered)
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"]        = "no-cache"
+    resp.headers["Expires"]       = "0"
+    return resp
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080, debug=True)
