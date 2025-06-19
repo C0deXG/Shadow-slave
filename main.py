@@ -16,26 +16,23 @@ HTML_TEMPLATE = """
   <title>Shadow Slave Reader</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    body    { font-family: sans-serif; padding: 1rem; max-width: 800px; margin: auto; }
-    header  { margin-bottom: 1.5rem; }
+    body { font-family: sans-serif; padding: 1rem; max-width: 800px; margin: auto; }
     select, button { margin: 0.5rem 0; font-size: 1rem; }
-    h1      { font-size: 1.5rem; margin-bottom: 1rem; }
-    h2      { font-size: 1.25rem; margin-top: 2rem; }
-    p       { margin: 0.5rem 0; line-height: 1.5; }
+    h1 { font-size: 1.5rem; margin-bottom: 1rem; }
+    h2 { font-size: 1.25rem; margin-top: 2rem; }
+    p  { margin: 0.5rem 0; line-height: 1.5; }
   </style>
 </head>
 <body>
 
-  <header>
-    <h1>Shadow Slave Reader</h1>
-  </header>
+  <h1>Shadow Slave Reader</h1>
 
   <form method="get">
     <label for="start">From:</label>
     <select name="start" id="start">
       {% for file in chapters %}
-        <option value="{{ file }}" {% if file==start %}selected{% endif %}>
-          {{ file.replace('.docx','') }}
+        <option value="{{ file }}" {% if file == start %}selected{% endif %}>
+          {{ file.replace('.docx', '') }}
         </option>
       {% endfor %}
     </select>
@@ -43,8 +40,8 @@ HTML_TEMPLATE = """
     <label for="end">To:</label>
     <select name="end" id="end">
       {% for file in chapters %}
-        <option value="{{ file }}" {% if file==end %}selected{% endif %}>
-          {{ file.replace('.docx','') }}
+        <option value="{{ file }}" {% if file == end %}selected{% endif %}>
+          {{ file.replace('.docx', '') }}
         </option>
       {% endfor %}
     </select>
@@ -53,12 +50,10 @@ HTML_TEMPLATE = """
   </form>
 
   {% if content %}
-    <!-- ONLY readable content inside article -->
-    <article id="chapter-content">
-      {{ content|safe }}
-    </article>
+    <main>
+      {{ content | safe }}
+    </main>
   {% endif %}
-
 </body>
 </html>
 """
@@ -66,20 +61,23 @@ HTML_TEMPLATE = """
 @app.route("/")
 def index():
     start = request.args.get("start")
-    end   = request.args.get("end")
+    end = request.args.get("end")
     content = ""
 
     if start in chapters and end in chapters:
         si, ei = chapters.index(start), chapters.index(end)
         if si <= ei:
-            for fname in chapters[si:ei+1]:
+            for fname in chapters[si:ei + 1]:
                 title = os.path.splitext(fname)[0]
-                content += f"<h2>{escape(title)}</h2>\n"
                 doc = Document(os.path.join(STORY_FOLDER, fname))
+
+                # Start HTML output for one chapter
+                content += f"<article>\n<h2>{escape(title)}</h2>\n"
                 for p in doc.paragraphs:
-                    txt = p.text.strip()
-                    if txt:
-                        content += f"<p>{escape(txt)}</p>\n"
+                    text = p.text.strip()
+                    if text:
+                        content += f"<p>{escape(text)}</p>\n"
+                content += "</article>\n"
         else:
             content = "<p>⚠️ Invalid range: 'From' must come before 'To'.</p>"
 
@@ -91,11 +89,10 @@ def index():
         end=end
     )
 
-    # Force Edge to fetch fresh version every time
     resp = make_response(rendered)
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
-    resp.headers["Pragma"]        = "no-cache"
-    resp.headers["Expires"]       = "0"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
     return resp
 
 if __name__ == "__main__":
