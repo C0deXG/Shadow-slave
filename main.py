@@ -5,13 +5,9 @@ from docx import Document
 
 app = Flask(__name__)
 
-# Directory containing your .docx chapter files
 STORY_FOLDER = "downloaded_docs"
-
-# List all .docx files in ascending order
 chapters = sorted(f for f in os.listdir(STORY_FOLDER) if f.endswith(".docx"))
 
-# Updated HTML template
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html>
@@ -21,54 +17,47 @@ HTML_TEMPLATE = """
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     body    { font-family: sans-serif; padding: 1rem; max-width: 800px; margin: auto; }
-    select, button { margin: .5rem 0; font-size: 1rem; }
     header  { margin-bottom: 1.5rem; }
-    main    { margin-top: 1rem; }
+    select, button { margin: 0.5rem 0; font-size: 1rem; }
     h1      { font-size: 1.5rem; margin-bottom: 1rem; }
     h2      { font-size: 1.25rem; margin-top: 2rem; }
-    p       { margin: .5rem 0; line-height: 1.5; }
+    p       { margin: 0.5rem 0; line-height: 1.5; }
   </style>
 </head>
 <body>
 
   <header>
     <h1>Shadow Slave Reader</h1>
-    <form method="get">
-      <label for="start">From:</label>
-      <select name="start" id="start">
-        {% for file in chapters %}
-          <option value="{{ file }}" {% if file==start %}selected{% endif %}>
-            {{ file.replace('.docx','') }}
-          </option>
-        {% endfor %}
-      </select>
-
-      <label for="end">To:</label>
-      <select name="end" id="end">
-        {% for file in chapters %}
-          <option value="{{ file }}" {% if file==end %}selected{% endif %}>
-            {{ file.replace('.docx','') }}
-          </option>
-        {% endfor %}
-      </select>
-
-      <button type="submit">Read</button>
-    </form>
   </header>
 
-  <main role="main">
-    {% if content %}
-      <article id="chapter-content">
-        {{ content|safe }}
-      </article>
-      <button onclick="window.speechSynthesis.speak(new SpeechSynthesisUtterance(document.getElementById('chapter-content').innerText));">
-        🔊 Read Aloud
-      </button>
-      <button onclick="window.speechSynthesis.cancel();">
-        🛑 Stop
-      </button>
-    {% endif %}
-  </main>
+  <form method="get">
+    <label for="start">From:</label>
+    <select name="start" id="start">
+      {% for file in chapters %}
+        <option value="{{ file }}" {% if file==start %}selected{% endif %}>
+          {{ file.replace('.docx','') }}
+        </option>
+      {% endfor %}
+    </select>
+
+    <label for="end">To:</label>
+    <select name="end" id="end">
+      {% for file in chapters %}
+        <option value="{{ file }}" {% if file==end %}selected{% endif %}>
+          {{ file.replace('.docx','') }}
+        </option>
+      {% endfor %}
+    </select>
+
+    <button type="submit">Read</button>
+  </form>
+
+  {% if content %}
+    <!-- ONLY readable content inside article -->
+    <article id="chapter-content">
+      {{ content|safe }}
+    </article>
+  {% endif %}
 
 </body>
 </html>
@@ -102,7 +91,7 @@ def index():
         end=end
     )
 
-    # Prevent stale content in Edge
+    # Force Edge to fetch fresh version every time
     resp = make_response(rendered)
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     resp.headers["Pragma"]        = "no-cache"
@@ -110,5 +99,5 @@ def index():
     return resp
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8080))  # Render support
+    port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port, debug=True)
