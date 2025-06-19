@@ -11,7 +11,7 @@ STORY_FOLDER = "downloaded_docs"
 # List all .docx files in ascending order
 chapters = sorted(f for f in os.listdir(STORY_FOLDER) if f.endswith(".docx"))
 
-# The HTML template: semantic <article>, <h2> and <p>
+# Updated HTML template
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html>
@@ -20,48 +20,56 @@ HTML_TEMPLATE = """
   <title>Shadow Slave Reader</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    body { font-family: sans-serif; padding: 1rem; max-width: 800px; margin: auto; }
-    select, button { margin: .5rem 0; }
-    article { margin-top: 2rem; }
-    h2      { margin: 1.5rem 0 .5rem; font-size: 1.25rem; }
-    p       { margin: .5rem 0; line-height: 1.4; }
+    body    { font-family: sans-serif; padding: 1rem; max-width: 800px; margin: auto; }
+    select, button { margin: .5rem 0; font-size: 1rem; }
+    header  { margin-bottom: 1.5rem; }
+    main    { margin-top: 1rem; }
+    h1      { font-size: 1.5rem; margin-bottom: 1rem; }
+    h2      { font-size: 1.25rem; margin-top: 2rem; }
+    p       { margin: .5rem 0; line-height: 1.5; }
   </style>
 </head>
 <body>
-  <h1>Shadow Slave Reader</h1>
-  <form method="get">
-    <label for="start">From:</label>
-    <select name="start" id="start">
-      {% for file in chapters %}
-        <option value="{{ file }}" {% if file==start %}selected{% endif %}>
-          {{ file.replace('.docx','') }}
-        </option>
-      {% endfor %}
-    </select>
 
-    <label for="end">To:</label>
-    <select name="end" id="end">
-      {% for file in chapters %}
-        <option value="{{ file }}" {% if file==end %}selected{% endif %}>
-          {{ file.replace('.docx','') }}
-        </option>
-      {% endfor %}
-    </select>
+  <header>
+    <h1>Shadow Slave Reader</h1>
+    <form method="get">
+      <label for="start">From:</label>
+      <select name="start" id="start">
+        {% for file in chapters %}
+          <option value="{{ file }}" {% if file==start %}selected{% endif %}>
+            {{ file.replace('.docx','') }}
+          </option>
+        {% endfor %}
+      </select>
 
-    <button type="submit">Read</button>
-  </form>
+      <label for="end">To:</label>
+      <select name="end" id="end">
+        {% for file in chapters %}
+          <option value="{{ file }}" {% if file==end %}selected{% endif %}>
+            {{ file.replace('.docx','') }}
+          </option>
+        {% endfor %}
+      </select>
 
-  {% if content %}
-    <article id="chapter-content">
-      {{ content|safe }}
-    </article>
-    <button onclick="window.speechSynthesis.speak(new SpeechSynthesisUtterance(document.getElementById('chapter-content').innerText));">
-      🔊 Read Aloud
-    </button>
-    <button onclick="window.speechSynthesis.cancel();">
-      🛑 Stop
-    </button>
-  {% endif %}
+      <button type="submit">Read</button>
+    </form>
+  </header>
+
+  <main role="main">
+    {% if content %}
+      <article id="chapter-content">
+        {{ content|safe }}
+      </article>
+      <button onclick="window.speechSynthesis.speak(new SpeechSynthesisUtterance(document.getElementById('chapter-content').innerText));">
+        🔊 Read Aloud
+      </button>
+      <button onclick="window.speechSynthesis.cancel();">
+        🛑 Stop
+      </button>
+    {% endif %}
+  </main>
+
 </body>
 </html>
 """
@@ -76,7 +84,6 @@ def index():
         si, ei = chapters.index(start), chapters.index(end)
         if si <= ei:
             for fname in chapters[si:ei+1]:
-                # Use filename without .docx as the heading text
                 title = os.path.splitext(fname)[0]
                 content += f"<h2>{escape(title)}</h2>\n"
                 doc = Document(os.path.join(STORY_FOLDER, fname))
@@ -95,7 +102,7 @@ def index():
         end=end
     )
 
-    # Prevent caching so Edge always loads the newest content
+    # Prevent stale content in Edge
     resp = make_response(rendered)
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     resp.headers["Pragma"]        = "no-cache"
@@ -103,4 +110,5 @@ def index():
     return resp
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080, debug=True)
+    port = int(os.environ.get("PORT", 8080))  # Render support
+    app.run(host="0.0.0.0", port=port, debug=True)
