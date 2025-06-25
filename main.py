@@ -2,11 +2,21 @@ from flask import Flask, render_template_string, request, make_response
 from markupsafe import escape
 import os
 from docx import Document
+import re
 
 app = Flask(__name__)
 
 STORY_FOLDER = "downloaded_docs"
-chapters = sorted(f for f in os.listdir(STORY_FOLDER) if f.endswith(".docx"))
+
+def extract_chapter_number(filename):
+    match = re.search(r'\d+', filename)
+    return int(match.group()) if match else float('inf')
+
+# Natural numeric sort (so Chapter2 < Chapter10)
+chapters = sorted(
+    [f for f in os.listdir(STORY_FOLDER) if f.endswith(".docx")],
+    key=extract_chapter_number
+)
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -61,7 +71,7 @@ HTML_TEMPLATE = """
 @app.route("/")
 def index():
     start = request.args.get("start")
-    end = request.args.get("end")
+    end   = request.args.get("end")
     content = ""
 
     if start in chapters and end in chapters:
@@ -70,8 +80,6 @@ def index():
             for fname in chapters[si:ei + 1]:
                 title = os.path.splitext(fname)[0]
                 doc = Document(os.path.join(STORY_FOLDER, fname))
-
-                # Start HTML output for one chapter
                 content += f"<article>\n<h2>{escape(title)}</h2>\n"
                 for p in doc.paragraphs:
                     text = p.text.strip()
@@ -91,11 +99,10 @@ def index():
 
     resp = make_response(rendered)
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
-    resp.headers["Pragma"] = "no-cache"
-    resp.headers["Expires"] = "0"
+    resp.headers["Pragma"]        = "no-cache"
+    resp.headers["Expires"]       = "0"
     return resp
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port, debug=True)
-# test
